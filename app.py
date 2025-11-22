@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import streamlit as st
 from pathlib import Path
 from langchain_cohere.sql_agent.agent import create_sql_agent
@@ -7,6 +9,8 @@ from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 from sqlalchemy import create_engine
 import sqlite3
 from langchain_groq import ChatGroq
+
+load_dotenv()
 
 st.set_page_config(page_title="SQL Databases Query Bot Using LangChain", page_icon="🦜🔗")
 st.title("🦜🔗 SQL Databases Query Bot Using LangChain")
@@ -30,14 +34,14 @@ else:
 groq_api_key=st.sidebar.text_input(label='GROQ_API_KEY', type='password')  
 
 if not db_uri:
-    st.info("please enter database information and uri")
+    st.sidebar.info("please enter database information and uri")
 
 if not groq_api_key:
-    st.info("please enter your groq api key information")
+    st.sidebar.info("please enter your groq api key information")
 
 
 #LLM Model
-model = ChatGroq(groq_api_key = groq_api_key, model="llama-3.1-8b-instant", streaming=True)
+model = ChatGroq(groq_api_key=groq_api_key, model="llama-3.1-8b-instant", streaming=True)
 
 @st.cache_resource(ttl="2h")
 def configure_db(db_uri, mysql_host=None, mysql_database=None, mysql_user=None, mysql_password=None):
@@ -45,7 +49,7 @@ def configure_db(db_uri, mysql_host=None, mysql_database=None, mysql_user=None, 
         db_filepath=(Path(__file__).parent/"student.db").absolute()
         print(db_filepath)
         creator = lambda: sqlite3.connect(f"file:{db_filepath}?mode=ro", uri=True)
-        return SQLDatabase(create_engine("sqlite:///", creator))
+        return SQLDatabase(create_engine("sqlite:///", creator=creator))
     elif db_uri==MYSQL_DB:
         st.error("Please provide all MySQL connection details.")
         st.stop()
@@ -58,3 +62,7 @@ else:
 
 
 #toolkit
+
+db_tool=SQLDatabaseToolkit(db=db, llm=model)
+
+agent=create_sql_agent()
