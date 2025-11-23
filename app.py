@@ -41,7 +41,9 @@ if not groq_api_key:
 
 
 #LLM Model
-model = ChatGroq(groq_api_key=groq_api_key, model="llama-3.1-8b-instant", streaming=True)
+model = ChatGroq(groq_api_key=groq_api_key, model="llama-3.1-8b-instant")
+
+#dialect+driver://username:password@host:port/database
 
 @st.cache_resource(ttl="2h")
 def configure_db(db_uri, mysql_host=None, mysql_database=None, mysql_user=None, mysql_password=None):
@@ -64,5 +66,29 @@ else:
 #toolkit
 
 db_tool=SQLDatabaseToolkit(db=db, llm=model)
+tools=db_tool.get_tools()
 
-agent=create_sql_agent()
+agent=create_sql_agent(
+    llm=model,
+    toolkit=db_tool,
+    verbose=True
+)
+
+if "messages" not in st.session_state or st.sidebar.button("Clear message history"):
+    st.session_state["messages"] = [{"role":"assistant", "content": "How can I help you?"}]
+
+for msg in st.session_state.messages:
+    st.chat_message(msg['role']).write(msg['content'])
+
+user_query=st.chat_input(placeholder="Ask anything from the selected database")
+
+if user_query:
+    st.session_state.messages.append({"role":"user", "content": user_query})
+    st.chat_message(msg['role']).write(user_query)
+
+    with st.chat_message("assistant"):
+
+        streamlit_callback= StreamlitCallbackHandler(st.container())
+        response=agent.run(user_query, callbacks=[streamlit_callback])
+        st.session_state.messages.append({"role":"assistant", "content": response})
+    
