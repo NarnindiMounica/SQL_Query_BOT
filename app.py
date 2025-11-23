@@ -20,28 +20,28 @@ MYSQL_DB="USE_MYSQLDBS"
 
 radio_options=['Use Sqlite3 Database Student.db', 'Connect to MySQL DBs']
 
-selected_option = st.sidebar.radio(label="select the DB which you want to query", options=radio_options)
+selected_option = st.sidebar.radio(label="Select the DB which you want to query", options=radio_options)
 
 if selected_option==radio_options[1]:
     db_uri=MYSQL_DB
-    mysql_host=st.text_input('Provide MySQL host to connect to')
-    mysql_database=st.text_input('MySQL Database')
-    mysql_user=st.text_input('MySQL User Name')
-    mysql_password=st.text_input('MySQL User Password', type="password")
+    mysql_host=st.sidebar.text_input('Provide MySQL host to connect to')
+    mysql_database=st.sidebar.text_input('MySQL Database')
+    mysql_user=st.sidebar.text_input('MySQL User Name')
+    mysql_password=st.sidebar.text_input('MySQL User Password', type="password")
 else:
     db_uri=LOCAL_DB
 
 groq_api_key=st.sidebar.text_input(label='GROQ_API_KEY', type='password')  
 
 if not db_uri:
-    st.sidebar.info("please enter database information and uri")
+    st.info("please enter database information and uri")
 
 if not groq_api_key:
-    st.sidebar.info("please enter your groq api key information")
+    st.info("please enter your groq api key information")
 
 
 #LLM Model
-model = ChatGroq(groq_api_key=groq_api_key, model="llama-3.1-8b-instant")
+model = ChatGroq(groq_api_key=groq_api_key, model_name="llama-3.1-8b-instant", streaming=True)
 
 #dialect+driver://username:password@host:port/database
 
@@ -53,15 +53,22 @@ def configure_db(db_uri, mysql_host=None, mysql_database=None, mysql_user=None, 
         creator = lambda: sqlite3.connect(f"file:{db_filepath}?mode=ro", uri=True)
         return SQLDatabase(create_engine("sqlite:///", creator=creator))
     elif db_uri==MYSQL_DB:
-        st.error("Please provide all MySQL connection details.")
-        st.stop()
+        if not (mysql_host and mysql_database and mysql_user and mysql_password):
+            return None
         return SQLDatabase(create_engine(f"mysql+mysqlconnector://{mysql_user}:{mysql_password}@{mysql_host}/{mysql_database}"))
                       
 if db_uri==MYSQL_DB:
-    db=configure_db(db_uri,mysql_host,mysql_database,mysql_user,mysql_password)
+    if mysql_host and mysql_user and mysql_password and mysql_database:
+        db = configure_db(db_uri, mysql_host, mysql_database, mysql_user, mysql_password)
+    else:
+        st.warning("Please enter all MySQL connection details.")
+        st.stop()
+elif db_uri==LOCAL_DB:
+    db=configure_db(db_uri)        
 else:
-    db=configure_db(db_uri)    
-
+    st.error("Database connection failed.")
+    st.stop()
+       
 
 #toolkit
 
@@ -84,11 +91,12 @@ user_query=st.chat_input(placeholder="Ask anything from the selected database")
 
 if user_query:
     st.session_state.messages.append({"role":"user", "content": user_query})
-    st.chat_message(msg['role']).write(user_query)
+    st.chat_message("user").write(user_query)
 
     with st.chat_message("assistant"):
 
         streamlit_callback= StreamlitCallbackHandler(st.container())
         response=agent.run(user_query, callbacks=[streamlit_callback])
         st.session_state.messages.append({"role":"assistant", "content": response})
+        st.write(response)
     

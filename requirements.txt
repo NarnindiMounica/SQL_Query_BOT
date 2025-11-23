@@ -5,3 +5,5 @@ langchain_community
 langchain_core
 langchain-groq
 langchain_cohere
+mysql-connector-python
+SQLAlchemy
